@@ -33,6 +33,6 @@ func init() {
 	}
 }
 
-func GetConn(){
+func GetConn() {
 
 }
