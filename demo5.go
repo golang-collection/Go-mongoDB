@@ -11,8 +11,8 @@ import (
 
 /**
 * @Author: super
-* @Date: 2021-02-02 10:47
-* @Description: 查询数据
+* @Date: 2021-02-02 11:20
+* @Description: 删除操作
 **/
 
 type TimePoint struct {
@@ -28,8 +28,15 @@ type LogRecord struct {
 	TimePoint TimePoint `json:"time_point" bson:"time_point"`
 }
 
-type FindByJobName struct {
-	JobName string `json:"job_name" bson:"job_name"`
+// startTime小于某时间
+// {"$lt": timestamp}
+type TimeBeforeCond struct {
+	Before int64 `bson:"$lt"`
+}
+
+// {"timePoint.startTime": {"$lt": timestamp} }
+type DeleteCond struct {
+	beforeCond TimeBeforeCond `bson:"timePoint.startTime"`
 }
 
 func main() {
@@ -38,9 +45,8 @@ func main() {
 		err        error
 		database   *mongo.Database
 		collection *mongo.Collection
-		cond       *FindByJobName
-		cursor     *mongo.Cursor
-		record     *LogRecord
+		delCond    *DeleteCond
+		delResult  *mongo.DeleteResult
 	)
 	// 1, 建立连接
 	ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
@@ -59,31 +65,15 @@ func main() {
 	// 3, 选择表my_collection
 	collection = database.Collection("log")
 
-	cond = &FindByJobName{JobName: "job12"}
-	skip := int64(0)
-	limit := int64(3)
-	if cursor, err = collection.Find(context.TODO(), cond, &options.FindOptions{
-		//可以用于分页
-		Skip:  &skip,
-		Limit: &limit,
-	}); err != nil {
+	// 4, 要删除开始时间早于当前时间的所有日志($lt是less than)
+	//  delete({"timePoint.startTime": {"$lt": 当前时间}})
+	delCond = &DeleteCond{beforeCond: TimeBeforeCond{Before: time.Now().Unix()}}
+
+	// 执行删除
+	if delResult, err = collection.DeleteMany(context.TODO(), delCond); err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	defer cursor.Close(context.TODO())
-
-	// 6, 遍历结果集
-	for cursor.Next(context.TODO()) {
-		// 定义一个日志对象
-		record = &LogRecord{}
-
-		// 反序列化bson到对象
-		if err = cursor.Decode(record); err != nil {
-			fmt.Println(err)
-			return
-		}
-		// 把日志行打印出来
-		fmt.Println(*record)
-	}
+	fmt.Println("删除的行数:", delResult.DeletedCount)
 }
