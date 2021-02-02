@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -12,7 +11,7 @@ import (
 
 /**
 * @Author: super
-* @Date: 2021-02-02 09:57
+* @Date: 2021-02-02 10:47
 * @Description:
 **/
 
@@ -29,14 +28,19 @@ type LogRecord struct {
 	TimePoint TimePoint `json:"time_point" bson:"time_point"`
 }
 
+type FindByJobName struct {
+	JobName string `json:"job_name" bson:"job_name"`
+}
+
 func main() {
 	var (
 		client     *mongo.Client
 		err        error
 		database   *mongo.Database
 		collection *mongo.Collection
+		cond       *FindByJobName
+		cursor     *mongo.Cursor
 		record     *LogRecord
-		result     *mongo.InsertOneResult
 	)
 	// 1, 建立连接
 	ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
@@ -55,19 +59,30 @@ func main() {
 	// 3, 选择表my_collection
 	collection = database.Collection("log")
 
-	record = &LogRecord{
-		JobName:   "job12",
-		Command:   "echo hello",
-		Err:       "",
-		Content:   "hello",
-		TimePoint: TimePoint{StartTime: time.Now().Unix(), EndTime: time.Now().Unix() + 10},
-	}
-
-	result, err = collection.InsertOne(context.TODO(), record)
-	if err != nil {
+	cond = &FindByJobName{JobName: "job12"}
+	skip := int64(0)
+	limit := int64(3)
+	if cursor, err = collection.Find(context.TODO(), cond, &options.FindOptions{
+		Skip:  &skip,
+		Limit: &limit,
+	}); err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(result.InsertedID)
 
+	defer cursor.Close(context.TODO())
+
+	// 6, 遍历结果集
+	for cursor.Next(context.TODO()) {
+		// 定义一个日志对象
+		record = &LogRecord{}
+
+		// 反序列化bson到对象
+		if err = cursor.Decode(record); err != nil {
+			fmt.Println(err)
+			return
+		}
+		// 把日志行打印出来
+		fmt.Println(*record)
+	}
 }

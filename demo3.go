@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -12,8 +11,8 @@ import (
 
 /**
 * @Author: super
-* @Date: 2021-02-02 09:57
-* @Description:
+* @Date: 2021-02-02 10:40
+* @Description: 批量插入数据
 **/
 
 type TimePoint struct {
@@ -36,7 +35,7 @@ func main() {
 		database   *mongo.Database
 		collection *mongo.Collection
 		record     *LogRecord
-		result     *mongo.InsertOneResult
+		result     *mongo.InsertManyResult
 	)
 	// 1, 建立连接
 	ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
@@ -63,11 +62,13 @@ func main() {
 		TimePoint: TimePoint{StartTime: time.Now().Unix(), EndTime: time.Now().Unix() + 10},
 	}
 
-	result, err = collection.InsertOne(context.TODO(), record)
+	logArray := []interface{}{record, record, record}
+
+	result, err = collection.InsertMany(context.TODO(), logArray)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(result.InsertedID)
+	fmt.Println(result.InsertedIDs)
 
 }
